@@ -177,4 +177,151 @@
                                     </div>
                                     <div className="text-right">
                                         <span className={`px-2 py-1 rounded-md text-[9px] font-black text-white ${r.location === '事務所' ? 'bg-blue-500' : r.location === '小口' ? 'bg-emerald-500' : 'bg-amber-500'}`}>{r.location}</span>
-                                        <div className="text-blue-600 font-black mt-1">¥
+                                        <div className="text-blue-600 font-black mt-1">¥{calculateTotal(r.cash).toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="absolute bottom-0 w-full h-16 bg-white border-t flex justify-around items-center z-20">
+                        <button onClick={() => setView('current')} className={view === 'current' ? 'text-blue-600' : 'text-gray-300'}><Icon name="users"/><div className="text-[8px] font-bold">利用中</div></button>
+                        <button onClick={() => setView('exited')} className={view === 'exited' ? 'text-blue-600' : 'text-gray-300'}><Icon name="archive"/><div className="text-[8px] font-bold">退居済</div></button>
+                    </div>
+
+                    {/* Form Modal */}
+                    {view === 'form' && (
+                        <div className="fixed inset-0 bg-white z-[60] flex flex-col animate-in slide-in-from-bottom">
+                            <div className="p-4 border-b flex justify-between items-center bg-gray-50 pt-10">
+                                <button onClick={() => setView('current')} className="text-gray-500 font-bold">キャンセル</button>
+                                <h2 className="font-black">預かり物登録</h2>
+                                <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold">保存</button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-10">
+                                <section className="space-y-3">
+                                    <label className="text-xs font-bold text-blue-600 uppercase tracking-widest">基本情報 (必須)</label>
+                                    <input className="w-full p-4 bg-gray-100 rounded-xl font-bold" placeholder="利用者氏名" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input type="date" className="p-4 bg-gray-100 rounded-xl" value={formData.entryDate} onChange={e => setFormData({...formData, entryDate: e.target.value})} />
+                                        <input type="date" className="p-4 bg-gray-100 rounded-xl" value={formData.exitDate} onChange={e => setFormData({...formData, exitDate: e.target.value})} />
+                                    </div>
+                                </section>
+
+                                <section className="space-y-3">
+                                    <label className="text-xs font-bold text-blue-600 uppercase tracking-widest">書類・枚数</label>
+                                    <div className="grid grid-cols-1 gap-2">
+                                        {['介護保険証', '介護負担割合証', '介護負担限度額認定証', '後期高齢'].map(doc => (
+                                            <div key={doc} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                                                <span className="text-sm font-bold">{doc}</span>
+                                                <input type="number" className="w-16 p-2 text-center bg-white rounded-lg border" value={formData.docs[doc]} onChange={e => setFormData({...formData, docs: {...formData.docs, [doc]: parseInt(e.target.value) || 0}})} />
+                                            </div>
+                                        ))}
+                                        {['国民健康保険', '重心', '特定疾病', '身障者手帳', '後期高齢医療限度額認定証', 'マイナンバーカード'].map(doc => (
+                                            <label key={doc} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                                                <input type="checkbox" checked={formData.docs[doc]} onChange={e => setFormData({...formData, docs: {...formData.docs, [doc]: e.target.checked}})} className="w-5 h-5" />
+                                                <span className="text-sm font-bold">{doc}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-3">
+                                    <div className="flex justify-between items-center"><label className="text-xs font-bold text-blue-600 uppercase tracking-widest">診察券</label>
+                                    <button onClick={() => setFormData({...formData, cards: [...formData.cards, '']})} className="text-xs bg-gray-200 px-2 py-1 rounded">+</button></div>
+                                    {formData.cards.map((c, i) => (
+                                        <input key={i} className="w-full p-3 bg-gray-50 rounded-lg mb-2" placeholder="病院名" value={c} onChange={e => {
+                                            const newCards = [...formData.cards]; newCards[i] = e.target.value; setFormData({...formData, cards: newCards});
+                                        }} />
+                                    ))}
+                                </section>
+
+                                <section className="space-y-3">
+                                    <label className="text-xs font-bold text-blue-600 uppercase tracking-widest">現金管理 (金種入力)</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[10000, 5000, 1000, 500, 100, 50, 10, 5, 1].map(m => (
+                                            <div key={m} className="p-2 bg-gray-900 text-white rounded-lg text-center">
+                                                <div className="text-[8px] opacity-50">{m}円</div>
+                                                <input type="number" className="w-full bg-transparent text-center font-bold text-sm" value={formData.cash[m] || ''} onChange={e => setFormData({...formData, cash: {...formData.cash, [m]: parseInt(e.target.value) || 0}})} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="p-4 bg-blue-50 rounded-xl text-right font-black text-blue-600">合計：¥{totalCash.toLocaleString()}</div>
+                                </section>
+
+                                <section className="space-y-3">
+                                    <label className="text-xs font-bold text-blue-600 uppercase tracking-widest">預かり場所・担当 (必須)</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['事務所', '小口', '金庫'].map(loc => (
+                                            <button key={loc} onClick={() => setFormData({...formData, location: loc})} className={`p-3 rounded-xl font-bold border-2 ${formData.location === loc ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-transparent bg-gray-100'}`}>{loc}</button>
+                                        ))}
+                                    </div>
+                                    <input className="w-full p-4 bg-gray-100 rounded-xl font-bold" placeholder="預かった職員名" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} />
+                                </section>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Preview Modal */}
+                    {selectedId && (
+                        <div className="fixed inset-0 bg-black/50 z-[100] flex items-end">
+                            <div className="bg-white w-full rounded-t-3xl p-6 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom">
+                                {residents.filter(r => r.id === selectedId).map(r => (
+                                    <div key={r.id} className="space-y-6">
+                                        <div className="flex justify-between items-start">
+                                            <h2 className="text-2xl font-black">{r.name} 様</h2>
+                                            <button onClick={() => setSelectedId(null)} className="p-2 bg-gray-100 rounded-full"><Icon name="x" /></button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-3 bg-gray-50 rounded-xl"><div className="text-[10px] text-gray-400">受付職員</div><div className="font-bold">{r.staffName}</div></div>
+                                            {r.isExited && <div className="p-3 bg-orange-50 rounded-xl"><div className="text-[10px] text-orange-400">返却職員</div><div className="font-bold">{r.returnStaffName}</div></div>}
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                            <h3 className="text-xs font-bold text-blue-600">預かり書類・物</h3>
+                                            <div className="flex flex-wrap gap-2">
+                                                {Object.entries(r.docs).map(([k, v]) => v && (
+                                                    <span key={k} className="px-3 py-1 bg-gray-100 rounded-full text-[11px] font-bold">{k}{typeof v === 'number' ? ` (${v}枚)` : ''}</span>
+                                                ))}
+                                                {r.cards.map((c, i) => <span key={i} className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[11px] font-bold">診察券: {c}</span>)}
+                                            </div>
+                                        </div>
+
+                                        <div className="p-4 bg-gray-900 text-white rounded-2xl">
+                                            <div className="flex justify-between border-b border-white/10 pb-2 mb-2"><span>預かり金</span><span className="text-xl font-black text-blue-400">¥{calculateTotal(r.cash).toLocaleString()}</span></div>
+                                            <div className="grid grid-cols-3 gap-1 text-[10px] opacity-70">
+                                                {Object.entries(r.cash).map(([m, n]) => n > 0 && <div key={m}>{m}円: {n}枚</div>)}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col gap-2 pt-4">
+                                            {!r.isExited ? (
+                                                <>
+                                                    <input className="w-full p-4 bg-orange-50 rounded-xl border-2 border-orange-200 outline-none font-bold" placeholder="返却対応した職員名を入力" value={returnStaff} onChange={e => setReturnStaff(e.target.value)} />
+                                                    <button onClick={() => handleToggleExit(r)} className="w-full py-4 bg-orange-600 text-white rounded-xl font-bold">返却完了・退居登録</button>
+                                                    <div className="flex gap-2">
+                                                        <button onClick={() => {setFormData(r); setView('form'); setSelectedId(null)}} className="flex-1 py-3 bg-gray-800 text-white rounded-xl font-bold">編集</button>
+                                                        <button onClick={() => handleDelete(r.id)} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl font-bold">削除</button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <button onClick={() => handleToggleExit(r, false)} className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold">利用中に戻す</button>
+                                                    <button onClick={() => handleDelete(r.id)} className="w-full py-4 bg-red-600 text-white rounded-xl font-bold">このデータを完全削除</button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
