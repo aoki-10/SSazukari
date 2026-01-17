@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>預かり管理アプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        // Firebase modules from CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        // --- Firebase 設定 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCLRLFch1FrcjhYeF7gprURWSlllfvN3yE",
+            authDomain: "ssazukari.firebaseapp.com",
+            projectId: "ssazukari",
+            storageBucket: "ssazukari.firebasestorage.app",
+            messagingSenderId: "919903244800",
+            appId: "1:919903244800:web:152f08ad8690129d0bbee5"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const COLLECTION_PATH = ["artifacts", "ssazukari", "public", "data", "residents_v3"];
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [residents, setResidents] = useState([]);
+            const [view, setView] = useState('current');
+            const [loading, setLoading] = useState(true);
+            const [formData, setFormData] = useState({ name: '', entryDate: '', exitDate: '', staffName: '', location: 'office', isExited: false });
+            const [selectedResident, setSelectedResident] = useState(null);
+            const [returnStaff, setReturnStaff] = useState('');
+
+            useEffect(() => {
+                signInAnonymously(auth).catch(console.error);
+                onAuthStateChanged(auth, setUser);
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+                const ref = collection(db, ...COLLECTION_PATH);
+                return onSnapshot(query(ref), (snap) => {
+                    setResidents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    setLoading(false);
+                });
+            }, [user]);
+
+            const handleSave = async () => {
+                if (!formData.name) return alert("名前を入力してください");
+                const ref = collection(db, ...COLLECTION_PATH);
+                await addDoc(ref, { ...formData, createdAt: serverTimestamp() });
+                setView('current');
+                setFormData({ name: '', entryDate: '', exitDate: '', staffName: '', location: 'office', isExited: false });
+            };
+
+            const handleExit = async (id) => {
+                if (!returnStaff) return alert("返却担当者を入力してください");
+                const ref = doc(db, ...COLLECTION_PATH, id);
+                await updateDoc(ref, { isExited: true, returnStaffName: returnStaff, exitProcessedAt: serverTimestamp() });
+                setSelectedResident(null);
+                setReturnStaff('');
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center">読み込み中...</div>;
+
+            return (
+                <div className="max-w-md mx-auto h-screen bg-white flex flex-col shadow-2xl relative overflow-hidden">
+                    {/* Header */}
+                    <div className="p-6 pt-12 bg-white border-b flex justify-between items-center">
+                        <h1 className="text-2xl font-black text-gray-800">預かり管理</h1>
+                        <button onClick={() => setView('form')} className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg active:scale-90 transition-transform">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24">
+                        {view === 'form' ? (
+                            <div className="space-y-4 animate-in slide-in-from-right">
+                                <button onClick={() => setView('current')} className="text-blue-600 font-bold flex items-center mb-4">← 戻る</button>
+                                <input className="w-full p-4 bg-gray-100 rounded-xl outline-none" placeholder="利用者名" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="text-xs font-bold text-gray-400 ml-1">入居日</div>
+                                    <div className="text-xs font-bold text-gray-400 ml-1">退居予定日</div>
+                                    <input type="date" className="p-4 bg-gray-100 rounded-xl" value={formData.entryDate} onChange={e => setFormData({...formData, entryDate: e.target.value})} />
+                                    <input type="date" className="p-4 bg-gray-100 rounded-xl" value={formData.exitDate} onChange={e => setFormData({...formData, exitDate: e.target.value})} />
+                                </div>
+                                <input className="w-full p-4 bg-gray-100 rounded-xl outline-none" placeholder="受付担当者" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} />
+                                <button onClick={handleSave} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg">登録を完了する</button>
+                            </div>
+                        ) : (
+                            residents.filter(r => view === 'current' ? !r.isExited : r.isExited).map(r => (
+                                <div key={r.id} onClick={() => setSelectedResident(r)} className="p-5 border border-gray-100 rounded-2xl bg-white shadow-sm active:bg-gray-50 transition-colors">
+                                    <div className="font-bold text-lg text-gray-800">{r.name} 様</div>
+                                    <div className="text-xs text-gray-400">{r.entryDate} 〜 {r.exitDate}</div>
+                                    {r.isExited && <div className="text-[10px] mt-2 text-orange-600 font-bold uppercase">退居済み</div>}
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    {/* Tab Bar */}
+                    <div className="absolute bottom-0 w-full h-20 bg-white/80 backdrop-blur-md border-t flex justify-around items-center">
+                        <button onClick={() => setView('current')} className={`flex flex-col items-center ${view === 'current' ? 'text-blue-600' : 'text-gray-300'}`}>
+                            <i data-lucide="user"></i><span className="text-[10px] font-bold">入居中</span>
+                        </button>
+                        <button onClick={() => setView('exited')} className={`flex flex-col items-center ${view === 'exited' ? 'text-blue-600' : 'text-gray-300'}`}>
+                            <i data-lucide="archive"></i><span className="text-[10px] font-bold">退居済</span>
+                        </button>
+                    </div>
+
+                    {/* Detail Modal */}
+                    {selectedResident && (
+                        <div className="fixed inset-0 bg-black/60 z-50 flex items-end animate-in fade-in">
+                            <div className="bg-white w-full rounded-t-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom">
+                                <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+                                <h3 className="text-2xl font-black mb-6">{selectedResident.name} 様</h3>
+                                {!selectedResident.isExited ? (
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-gray-500">保管場所: {selectedResident.location}</p>
+                                        <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold" placeholder="返却担当者名" value={returnStaff} onChange={e => setReturnStaff(e.target.value)} />
+                                        <div className="flex gap-3">
+                                            <button onClick={() => setSelectedResident(null)} className="flex-1 py-4 bg-gray-100 rounded-xl font-bold">閉じる</button>
+                                            <button onClick={() => handleExit(selectedResident.id)} className="flex-[2] py-4 bg-orange-600 text-white rounded-xl font-bold shadow-lg">返却を完了する</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <p className="text-sm text-gray-500">返却済：{selectedResident.returnStaffName}</p>
+                                        <button onClick={() => setSelectedResident(null)} className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold">確認しました</button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+        // Initialize icons after React render
+        setTimeout(() => lucide.createIcons(), 500);
+    </script>
+</body>
+</html>
