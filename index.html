@@ -58,14 +58,17 @@
             const [filterDate, setFilterDate] = useState('');
             const [bulkDeleteRange, setBulkDeleteRange] = useState({ start: '', end: '' });
 
-            const initialForm = {
+            // 初期フォームの構造を定義
+            const getInitialForm = () => ({
                 name: '', entryDate: '', exitDate: '',
                 docs: { 介護保険証: 0, 介護負担割合証: 0, 介護負担限度額認定証: 0, 後期高齢: 0, 国民健康保険: false, 重心: false, 特定疾病: false, 身障者手帳: false, 後期高齢医療限度額認定証: false, マイナンバーカード: false },
-                cards: [], others: [],
+                cards: [], 
+                others: [],
                 cash: { 10000: 0, 5000: 0, 1000: 0, 500: 0, 100: 0, 50: 0, 10: 0, 5: 0, 1: 0 },
                 location: '', staffName: '', isExited: false
-            };
-            const [formData, setFormData] = useState(initialForm);
+            });
+
+            const [formData, setFormData] = useState(getInitialForm());
             const [returnStaff, setReturnStaff] = useState('');
 
             useEffect(() => {
@@ -96,6 +99,11 @@
                 return Object.entries(cash).reduce((acc, [v, n]) => acc + (Number(v) * Number(n)), 0);
             };
 
+            const openNewForm = () => {
+                setFormData(getInitialForm());
+                setView('form');
+            };
+
             const handleSave = async () => {
                 if (!formData.name || !formData.entryDate || !formData.exitDate || !formData.location || !formData.staffName) {
                     alert("必須項目を入力してください"); return;
@@ -114,7 +122,7 @@
                     } else {
                         await db.collection(COLLECTION_PATH).add({ ...payload, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                     }
-                    setFormData(initialForm); setView('current');
+                    setView('current');
                 } catch (e) { alert("保存に失敗しました"); } finally { setLoading(false); }
             };
 
@@ -129,7 +137,7 @@
             };
 
             const handleDelete = async (id) => {
-                if (window.confirm("このデータを削除しますか？")) {
+                if (window.confirm("このデータを完全に削除しますか？")) {
                     await db.collection(COLLECTION_PATH).doc(id).delete();
                     setSelectedId(null);
                 }
@@ -171,7 +179,7 @@
                     <div className="p-6 pt-8 bg-white border-b shadow-sm sticky top-0 z-20">
                         <div className="flex justify-between items-center mb-4">
                             <h1 className="text-xl font-black">{view === 'current' ? '利用中リスト' : '返却済リスト'}</h1>
-                            <button onClick={() => {setFormData(initialForm); setView('form')}} className="p-3 bg-blue-600 text-white rounded-xl shadow-lg active:scale-95"><Icon name="plus" /></button>
+                            <button onClick={openNewForm} className="p-3 bg-blue-600 text-white rounded-xl shadow-lg active:scale-95"><Icon name="plus" /></button>
                         </div>
                         <input className="w-full p-2 bg-gray-100 rounded-lg text-sm outline-none border-2 border-transparent focus:border-blue-500/20 mb-2" placeholder="氏名検索..." value={searchName} onChange={e => setSearchName(e.target.value)} />
                         
@@ -179,10 +187,9 @@
                             <div className="relative"><Icon name="calendar" size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" /><input type="date" className="w-full pl-7 p-2 bg-gray-100 rounded-lg text-[11px] font-bold" value={filterDate} onChange={e => setFilterDate(e.target.value)} /></div>
                         ) : (
                             <div className="bg-red-50 p-3 rounded-xl space-y-2 border border-red-100">
-                                <div className="text-[10px] font-black text-red-400 flex items-center gap-1 uppercase tracking-widest"><Icon name="trash-2" size={10} /> 返却日で期間指定一括削除</div>
+                                <div className="text-[10px] font-black text-red-400 flex items-center gap-1 uppercase tracking-widest"><Icon name="trash-2" size={10} /> 期間指定一括削除</div>
                                 <div className="flex gap-1 items-center">
                                     <input type="date" className="flex-1 p-1 bg-white rounded border border-red-100 text-[10px]" value={bulkDeleteRange.start} onChange={e => setBulkDeleteRange({...bulkDeleteRange, start: e.target.value})} />
-                                    <span className="text-red-200 text-[10px]">~</span>
                                     <input type="date" className="flex-1 p-1 bg-white rounded border border-red-100 text-[10px]" value={bulkDeleteRange.end} onChange={e => setBulkDeleteRange({...bulkDeleteRange, end: e.target.value})} />
                                     <button onClick={handleBulkDelete} className="bg-red-500 text-white px-3 py-1 rounded text-[10px] font-bold shadow-sm active:scale-95">削除</button>
                                 </div>
@@ -211,15 +218,15 @@
                             <div className="p-4 border-b flex justify-between items-center bg-gray-50 pt-10">
                                 <button onClick={() => setView('current')} className="text-gray-500 font-bold px-2">閉じる</button>
                                 <h2 className="font-black text-lg">情報を登録</h2>
-                                <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-black shadow-lg">保存</button>
+                                <button onClick={handleSave} className="px-6 py-2 bg-blue-600 text-white rounded-xl font-black shadow-lg active:scale-95">保存</button>
                             </div>
                             <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-10">
                                 <section className="space-y-3">
                                     <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest">基本情報 (必須)</label>
-                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="利用者氏名" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="利用者氏名" value={formData.name || ''} onChange={e => setFormData({...formData, name: e.target.value})} />
                                     <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1"><label className="text-[9px] font-bold text-gray-400 ml-1">入居日</label><input type="date" className="w-full p-4 bg-gray-100 rounded-2xl text-sm" value={formData.entryDate} onChange={e => setFormData({...formData, entryDate: e.target.value})} /></div>
-                                        <div className="space-y-1"><label className="text-[9px] font-bold text-gray-400 ml-1">退居日</label><input type="date" className="w-full p-4 bg-gray-100 rounded-2xl text-sm" value={formData.exitDate} onChange={e => setFormData({...formData, exitDate: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[9px] font-bold text-gray-400 ml-1">入居日</label><input type="date" className="w-full p-4 bg-gray-100 rounded-2xl text-sm" value={formData.entryDate || ''} onChange={e => setFormData({...formData, entryDate: e.target.value})} /></div>
+                                        <div className="space-y-1"><label className="text-[9px] font-bold text-gray-400 ml-1">退居日</label><input type="date" className="w-full p-4 bg-gray-100 rounded-2xl text-sm" value={formData.exitDate || ''} onChange={e => setFormData({...formData, exitDate: e.target.value})} /></div>
                                     </div>
                                 </section>
 
@@ -248,21 +255,21 @@
                                     <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest">診察券・その他</label>
                                     <div className="space-y-2">
                                         {(formData.cards || []).map((c, i) => (
-                                            <div key={i} className="flex gap-2 animate-in fade-in zoom-in duration-200">
-                                                <input className="flex-1 p-3 bg-gray-50 rounded-xl text-sm font-bold border-2 border-transparent focus:border-blue-100 outline-none" placeholder="病院名を入力" value={c} onChange={e => { const newC = [...formData.cards]; newC[i] = e.target.value; setFormData({...formData, cards: newC}); }} />
+                                            <div key={i} className="flex gap-2">
+                                                <input className="flex-1 p-3 bg-gray-50 rounded-xl text-sm font-bold border-2 border-transparent focus:border-blue-100 outline-none" placeholder="病院名" value={c} onChange={e => { const newC = [...formData.cards]; newC[i] = e.target.value; setFormData({...formData, cards: newC}); }} />
                                                 <button onClick={() => setFormData({...formData, cards: formData.cards.filter((_, idx) => idx !== i)})} className="p-3 text-red-400"><Icon name="trash-2" size={18}/></button>
                                             </div>
                                         ))}
-                                        <button onClick={() => setFormData({...formData, cards: [...(formData.cards || []), ""]})} className="w-full py-3 border-2 border-dashed border-blue-100 rounded-xl text-blue-400 text-xs font-black active:bg-blue-50 transition-all">+ 診察券を追加</button>
+                                        <button onClick={() => setFormData({...formData, cards: [...(formData.cards || []), ""]})} className="w-full py-3 border-2 border-dashed border-blue-100 rounded-xl text-blue-400 text-xs font-black">+ 診察券を追加</button>
                                     </div>
                                     <div className="space-y-2 mt-4">
                                         {(formData.others || []).map((o, i) => (
-                                            <div key={i} className="flex gap-2 animate-in fade-in zoom-in duration-200">
-                                                <input className="flex-1 p-3 bg-orange-50 rounded-xl text-sm font-bold border-2 border-transparent focus:border-orange-100 outline-none" placeholder="物品名を入力" value={o} onChange={e => { const newO = [...formData.others]; newO[i] = e.target.value; setFormData({...formData, others: newO}); }} />
+                                            <div key={i} className="flex gap-2">
+                                                <input className="flex-1 p-3 bg-orange-50 rounded-xl text-sm font-bold border-2 border-transparent focus:border-orange-100 outline-none" placeholder="物品名" value={o} onChange={e => { const newO = [...formData.others]; newO[i] = e.target.value; setFormData({...formData, others: newO}); }} />
                                                 <button onClick={() => setFormData({...formData, others: formData.others.filter((_, idx) => idx !== i)})} className="p-3 text-red-400"><Icon name="trash-2" size={18}/></button>
                                             </div>
                                         ))}
-                                        <button onClick={() => setFormData({...formData, others: [...(formData.others || []), ""]})} className="w-full py-3 border-2 border-dashed border-orange-100 rounded-xl text-orange-400 text-xs font-black active:bg-orange-50 transition-all">+ その他の物品を追加</button>
+                                        <button onClick={() => setFormData({...formData, others: [...(formData.others || []), ""]})} className="w-full py-3 border-2 border-dashed border-orange-100 rounded-xl text-orange-400 text-xs font-black">+ その他を追加</button>
                                     </div>
                                 </section>
 
@@ -289,7 +296,7 @@
                                             <button key={loc} onClick={() => setFormData({...formData, location: loc})} className={`py-4 rounded-2xl font-black text-xs border-2 transition-all ${formData.location === loc ? 'border-blue-600 bg-blue-600 text-white shadow-lg' : 'border-gray-100 bg-white text-gray-400'}`}>{loc}</button>
                                         ))}
                                     </div>
-                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="担当職員名を入力" value={formData.staffName} onChange={e => setFormData({...formData, staffName: e.target.value})} />
+                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="担当職員名を入力" value={formData.staffName || ''} onChange={e => setFormData({...formData, staffName: e.target.value})} />
                                 </section>
                             </div>
                         </div>
