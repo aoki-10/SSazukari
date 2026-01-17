@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="robots" content="noindex,nofollow,noarchive">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>施設預かり管理 Pro</title>
+    <title>SS預かり管理システム</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -22,11 +22,7 @@
         .location-金庫 { border-left: 8px solid #f59e0b; }
         @keyframes pulse-red { 0%, 100% { background-color: #fff1f2; } 50% { background-color: #ffe4e6; } }
         .alert-pulse { animation: pulse-red 2s infinite; }
-        /* ロック画面用のスタイル */
-        .passcode-input {
-            -webkit-text-security: disc; /* 入力文字を●にする（iPhone/Safari対応） */
-            text-security: disc;
-        }
+        .passcode-input { -webkit-text-security: disc; text-security: disc; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -35,8 +31,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // 【設定】パスコード（4桁の数字）をここで変更できます
-        const SYSTEM_PASSCODE = "1870"; 
+        const SYSTEM_PASSCODE = "1234"; // パスコード設定
 
         const firebaseConfig = {
             apiKey: "AIzaSyCLRLFch1FrcjhYeF7gprURWSlllfvN3yE",
@@ -84,15 +79,10 @@
             const [formData, setFormData] = useState(getInitialForm());
             const [returnStaff, setReturnStaff] = useState('');
 
-            // パスコードチェック
             const handleLockSubmit = (e) => {
                 e.preventDefault();
-                if (passInput === SYSTEM_PASSCODE) {
-                    setIsLocked(false);
-                } else {
-                    alert("パスコードが違います");
-                    setPassInput("");
-                }
+                if (passInput === SYSTEM_PASSCODE) { setIsLocked(false); } 
+                else { alert("パスコードが違います"); setPassInput(""); }
             };
 
             useEffect(() => {
@@ -127,8 +117,6 @@
                 }
                 const payload = {
                     ...formData,
-                    cards: (formData.cards || []).filter(c => c && c.trim() !== ""),
-                    others: (formData.others || []).filter(o => o && o.trim() !== ""),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 try {
@@ -139,7 +127,6 @@
                     } else {
                         await db.collection(COLLECTION_PATH).add({ ...payload, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
                     }
-                    setFormData(getInitialForm());
                     setView('current');
                 } catch (e) { alert("保存に失敗しました"); } finally { setLoading(false); }
             };
@@ -179,25 +166,15 @@
                 return statusMatch && nameMatch && dateMatch;
             });
 
-            // ロック画面の描画
             if (isLocked) {
                 return (
                     <div className="h-screen bg-blue-600 flex items-center justify-center p-6">
                         <div className="bg-white w-full max-w-xs p-8 rounded-[32px] shadow-2xl text-center">
-                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                                <Icon name="lock" size={32} />
-                            </div>
+                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><Icon name="lock" size={32} /></div>
                             <h2 className="text-xl font-black text-gray-800 mb-2">認証が必要です</h2>
                             <p className="text-xs text-gray-400 font-bold mb-6">4桁のパスコードを入力</p>
                             <form onSubmit={handleLockSubmit}>
-                                <input 
-                                    type="tel" 
-                                    maxLength="4"
-                                    className="w-full text-center text-3xl tracking-[1em] font-black p-4 bg-gray-100 rounded-2xl outline-none border-2 border-transparent focus:border-blue-500 passcode-input mb-4"
-                                    value={passInput}
-                                    onChange={(e) => setPassInput(e.target.value.replace(/\D/g, ''))}
-                                    autoFocus
-                                />
+                                <input type="tel" maxLength="4" className="w-full text-center text-3xl tracking-[1em] font-black p-4 bg-gray-100 rounded-2xl outline-none border-2 border-transparent focus:border-blue-500 passcode-input mb-4" value={passInput} onChange={(e) => setPassInput(e.target.value.replace(/\D/g, ''))} autoFocus />
                                 <button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg active:scale-95">解除する</button>
                             </form>
                         </div>
@@ -222,7 +199,7 @@
 
                     <div className="p-6 pt-8 bg-white border-b shadow-sm sticky top-0 z-20">
                         <div className="flex justify-between items-center mb-4">
-                            <h1 className="text-xl font-black">{view === 'current' ? '利用中リスト' : '返却済リスト'}</h1>
+                            <h1 className="text-xl font-black">{view === 'current' ? 'SS預かり表' : '返却済リスト'}</h1>
                             <button onClick={() => { setFormData(getInitialForm()); setView('form'); }} className="p-3 bg-blue-600 text-white rounded-xl shadow-lg active:scale-95"><Icon name="plus" /></button>
                         </div>
                         <input className="w-full p-2 bg-gray-100 rounded-lg text-sm outline-none border-2 border-transparent focus:border-blue-500/20 mb-2" placeholder="氏名検索..." value={searchName} onChange={e => setSearchName(e.target.value)} />
@@ -231,7 +208,7 @@
                             <div className="relative"><Icon name="calendar" size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400" /><input type="date" className="w-full pl-7 p-2 bg-gray-100 rounded-lg text-[11px] font-bold" value={filterDate} onChange={e => setFilterDate(e.target.value)} /></div>
                         ) : (
                             <div className="bg-red-50 p-3 rounded-xl space-y-2 border border-red-100">
-                                <div className="text-[10px] font-black text-red-400 flex items-center gap-1 uppercase"><Icon name="trash-2" size={10} /> 期間指定一括削除</div>
+                                <div className="text-[10px] font-black text-red-400 flex items-center gap-1 uppercase tracking-widest"><Icon name="trash-2" size={10} /> 期間指定一括削除</div>
                                 <div className="flex gap-1 items-center">
                                     <input type="date" className="flex-1 p-1 bg-white rounded border border-red-100 text-[10px]" value={bulkDeleteRange.start} onChange={e => setBulkDeleteRange({...bulkDeleteRange, start: e.target.value})} />
                                     <input type="date" className="flex-1 p-1 bg-white rounded border border-red-100 text-[10px]" value={bulkDeleteRange.end} onChange={e => setBulkDeleteRange({...bulkDeleteRange, end: e.target.value})} />
@@ -245,7 +222,7 @@
                         {displayList.map(r => (
                             <div key={r.id} onClick={() => setSelectedId(r.id)} className={`p-5 bg-white rounded-[24px] shadow-sm cursor-pointer location-${r.location}`}>
                                 <div className="flex justify-between items-start">
-                                    <div><div className="font-black text-lg text-gray-800">{r.name} 様</div><div className="text-[10px] text-gray-400 font-bold mt-1 uppercase">{view === 'current' ? `${r.entryDate} - ${r.exitDate}` : `返却日: ${r.returnAt?.split('T')[0]}`}</div></div>
+                                    <div><div className="font-black text-lg text-gray-800">{r.name} 様</div><div className="text-[10px] text-gray-400 font-bold mt-1 uppercase tracking-tighter">{view === 'current' ? `${r.entryDate} - ${r.exitDate}` : `返却日: ${r.returnAt?.split('T')[0]}`}</div></div>
                                     <div className="text-right"><span className={`px-2 py-1 rounded-md text-[9px] font-black text-white ${r.location === '事務所' ? 'bg-blue-500' : r.location === '小口' ? 'bg-emerald-500' : 'bg-amber-500'}`}>{r.location}</span><div className="text-blue-600 font-black text-lg mt-1">¥{calculateTotal(r.cash).toLocaleString()}</div></div>
                                 </div>
                             </div>
@@ -253,7 +230,7 @@
                     </div>
 
                     <div className="absolute bottom-0 w-full h-18 bg-white border-t flex justify-around items-center z-20 pb-4 pt-2">
-                        <button onClick={() => setView('current')} className={view === 'current' ? 'text-blue-600' : 'text-gray-300'}><Icon name="users"/><div className="text-[9px] font-black">利用中</div></button>
+                        <button onClick={() => setView('current')} className={view === 'current' ? 'text-blue-600' : 'text-gray-300'}><Icon name="users"/><div className="text-[9px] font-black">SS預かり表</div></button>
                         <button onClick={() => setView('exited')} className={view === 'exited' ? 'text-blue-600' : 'text-gray-300'}><Icon name="archive"/><div className="text-[9px] font-black">返却済</div></button>
                     </div>
 
@@ -336,7 +313,7 @@
                                             <button key={loc} onClick={() => setFormData({...formData, location: loc})} className={`py-4 rounded-2xl font-black text-xs border-2 transition-all ${formData.location === loc ? 'border-blue-600 bg-blue-600 text-white shadow-lg' : 'border-gray-100 bg-white text-gray-400'}`}>{loc}</button>
                                         ))}
                                     </div>
-                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="担当職員名を入力" value={formData.staffName || ''} onChange={e => setFormData({...formData, staffName: e.target.value})} />
+                                    <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none" placeholder="受付担当職員名を入力" value={formData.staffName || ''} onChange={e => setFormData({...formData, staffName: e.target.value})} />
                                 </section>
                             </div>
                         </div>
@@ -344,13 +321,28 @@
 
                     {selectedId && (
                         <div className="fixed inset-0 bg-black/60 z-[100] flex items-end backdrop-blur-sm">
-                            <div className="bg-white w-full rounded-t-[40px] p-8 max-h-[95vh] overflow-y-auto">
+                            <div className="bg-white w-full rounded-t-[40px] p-8 max-h-[95vh] overflow-y-auto shadow-2xl">
                                 {residents.filter(r => r.id === selectedId).map(r => (
                                     <div key={r.id} className="space-y-8 pb-6">
                                         <div className="flex justify-between items-start">
                                             <div><h2 className="text-3xl font-black text-gray-800 leading-tight">{r.name} 様</h2><div className="mt-2 flex gap-2"><span className={`px-3 py-1 rounded-full text-[9px] font-black text-white ${r.location === '事務所' ? 'bg-blue-500' : 'bg-emerald-500'}`}>{r.location}保管</span></div></div>
                                             <button onClick={() => setSelectedId(null)} className="p-3 bg-gray-50 rounded-full text-gray-400"><Icon name="x" /></button>
                                         </div>
+
+                                        {/* 担当者情報セクション */}
+                                        <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-3xl border border-gray-100">
+                                            <div className="space-y-1">
+                                                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">受付担当者</p>
+                                                <p className="text-sm font-black text-gray-700 flex items-center gap-1"><Icon name="user" size={12} className="text-blue-400"/> {r.staffName || '---'}</p>
+                                            </div>
+                                            {r.isExited && (
+                                                <div className="space-y-1">
+                                                    <p className="text-[8px] font-black text-red-400 uppercase tracking-widest">返却担当者</p>
+                                                    <p className="text-sm font-black text-red-600 flex items-center gap-1"><Icon name="user-check" size={12} className="text-red-400"/> {r.returnStaffName || '---'}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div className="space-y-4">
                                             <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">預かり物詳細</h3>
                                             <div className="flex flex-wrap gap-2">
@@ -360,7 +352,7 @@
                                             </div>
                                         </div>
                                         <div className="p-6 bg-white border border-gray-100 rounded-[32px] shadow-sm">
-                                            <div className="flex justify-between items-end border-b border-gray-50 pb-4 mb-4"><span className="text-[10px] font-bold text-gray-400 uppercase">Balance</span><span className="text-3xl font-black text-blue-600">¥{calculateTotal(r.cash).toLocaleString()}</span></div>
+                                            <div className="flex justify-between items-end border-b border-gray-50 pb-4 mb-4"><span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Balance</span><span className="text-3xl font-black text-blue-600">¥{calculateTotal(r.cash).toLocaleString()}</span></div>
                                             <div className="grid grid-cols-3 gap-2">
                                                 {r.cash && Object.entries(r.cash).map(([m, n]) => (n !== 0 && n !== "0") && (<div key={m} className="bg-gray-50 p-2 rounded-xl text-center"><div className="text-[8px] text-gray-400 font-bold uppercase">{m}円</div><div className="text-sm font-black text-gray-700">{n}枚</div></div>))}
                                             </div>
@@ -369,16 +361,16 @@
                                             {!r.isExited ? (
                                                 <>
                                                     <div className="space-y-2"><label className="text-[9px] font-black text-indigo-400 uppercase ml-2">返却対応職員</label><input className="w-full p-4 bg-gray-50 rounded-2xl border-2 border-transparent focus:border-indigo-100 outline-none font-black text-indigo-700" placeholder="職員名を入力" value={returnStaff} onChange={e => setReturnStaff(e.target.value)} /></div>
-                                                    <button onClick={() => handleToggleExit(r)} className="w-full py-5 bg-indigo-500 text-white rounded-[24px] font-black shadow-lg">返却登録</button>
+                                                    <button onClick={() => handleToggleExit(r)} className="w-full py-5 bg-indigo-500 text-white rounded-[24px] font-black shadow-lg active:scale-95">返却登録</button>
                                                     <div className="flex gap-2">
-                                                        <button onClick={() => {setFormData(r); setView('form'); setSelectedId(null)}} className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-[20px] font-black text-sm">編集</button>
-                                                        <button onClick={() => handleDelete(r.id)} className="flex-1 py-4 bg-red-50 text-red-400 rounded-[20px] font-black text-sm">削除</button>
+                                                        <button onClick={() => {setFormData(r); setView('form'); setSelectedId(null)}} className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-[20px] font-black text-sm active:scale-95">編集</button>
+                                                        <button onClick={() => handleDelete(r.id)} className="flex-1 py-4 bg-red-50 text-red-400 rounded-[20px] font-black text-sm active:scale-95">削除</button>
                                                     </div>
                                                 </>
                                             ) : (
                                                 <div className="flex gap-2">
-                                                    <button onClick={() => handleToggleExit(r, false)} className="flex-1 py-4 bg-emerald-500 text-white rounded-[20px] font-black">利用中に戻す</button>
-                                                    <button onClick={() => handleDelete(r.id)} className="flex-1 py-4 bg-red-50 text-red-400 rounded-[20px] font-black">完全削除</button>
+                                                    <button onClick={() => handleToggleExit(r, false)} className="flex-1 py-4 bg-emerald-500 text-white rounded-[20px] font-black active:scale-95">利用中に戻す</button>
+                                                    <button onClick={() => handleDelete(r.id)} className="flex-1 py-4 bg-red-50 text-red-400 rounded-[20px] font-black active:scale-95">完全削除</button>
                                                 </div>
                                             )}
                                         </div>
