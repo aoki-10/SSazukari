@@ -36,9 +36,10 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
         const auth = firebase.auth();
-        const COLLECTION_PATH = "residents_v3";
+        
+        // --- 修正箇所: 以前のデータが保存されているフルパスを指定 ---
+        const COLLECTION_PATH = "artifacts/ss-azukari-app/public/data/residents_v3";
 
-        // アイコンコンポーネント
         const Icon = ({ name, size = 24, className = "" }) => (
             <i data-lucide={name} style={{ width: size, height: size }} className={`inline-block ${className}`}></i>
         );
@@ -46,7 +47,7 @@
         function App() {
             const [user, setUser] = useState(null);
             const [residents, setResidents] = useState([]);
-            const [view, setView] = useState('current'); // 'current', 'exited', 'form'
+            const [view, setView] = useState('current');
             const [loading, setLoading] = useState(true);
             const [searchName, setSearchName] = useState('');
             const [formStep, setFormStep] = useState(1);
@@ -56,6 +57,7 @@
             const initialForm = {
                 name: '', entryDate: new Date().toISOString().split('T')[0], exitDate: '', 
                 cashCounts: { 10000: 0, 5000: 0, 1000: 0, 500: 0, 100: 0, 50: 0, 10: 0, 5: 0, 1: 0 },
+                itemCounts: {}, // 物品用の予備
                 staffName: '', isExited: false
             };
             const [formData, setFormData] = useState(initialForm);
@@ -66,24 +68,32 @@
 
             useEffect(() => {
                 if (!user) return;
-                const unsub = db.collection(COLLECTION_PATH).orderBy("createdAt", "desc").onSnapshot(snap => {
+                // 作成日時順、なければ更新順で取得
+                const unsub = db.collection(COLLECTION_PATH).onSnapshot(snap => {
                     setResidents(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                     setLoading(false);
                     setTimeout(() => lucide.createIcons(), 100);
+                }, err => {
+                    console.error("Firestore Error:", err);
+                    setLoading(false);
                 });
                 return () => unsub();
             }, [user]);
 
             useEffect(() => { lucide.createIcons(); }, [view, selectedResident, formStep]);
 
-            const calculateTotal = (counts) => Object.entries(counts || {}).reduce((acc, [val, num]) => acc + (Number(val) * Number(num)), 0);
+            const calculateTotal = (counts) => {
+                if (!counts) return 0;
+                return Object.entries(counts).reduce((acc, [val, num]) => acc + (Number(val) * Number(num)), 0);
+            };
 
             const handleSave = async () => {
                 if(!formData.name || !formData.staffName) return alert("氏名と担当者を入力してください");
                 try {
                     await db.collection(COLLECTION_PATH).add({
                         ...formData,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     setFormData(initialForm); setView('current'); setFormStep(1);
                 } catch (e) { alert("保存に失敗しました"); }
@@ -94,19 +104,19 @@
                 await db.collection(COLLECTION_PATH).doc(id).update({
                     isExited: true,
                     returnStaffName: returnStaff,
-                    exitProcessedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    exitProcessedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 setSelectedResident(null); setReturnStaff('');
             };
 
-            const filtered = residents.filter(r => (view === 'current' ? !r.isExited : r.isExited) && r.name.includes(searchName));
+            const filtered = residents.filter(r => (view === 'current' ? !r.isExited : r.isExited) && (r.name || "").includes(searchName));
 
-            if (loading) return <div className="h-screen flex flex-col items-center justify-center font-bold text-blue-600">読み込み中...</div>;
+            if (loading) return <div className="h-screen flex flex-col items-center justify-center font-bold text-blue-600">データを読み込み中...</div>;
 
             return (
                 <div className="max-w-md mx-auto h-screen bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl">
                     
-                    {/* ヘッダー */}
                     <div className="p-6 pt-12 bg-white border-b space-y-4 shadow-sm z-10">
                         <div className="flex justify-between items-center">
                             <h1 className="text-2xl font-black tracking-tight">{view === 'current' ? '入居中一覧' : '退居済(返却済)'}</h1>
@@ -120,26 +130,24 @@
                         </div>
                     </div>
 
-                    {/* メインリスト */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 hide-scrollbar">
-                        {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">該当するデータがありません</div>}
+                        {filtered.length === 0 && <div className="text-center py-10 text-gray-400 text-sm">データが見つかりません。</div>}
                         {filtered.map(r => (
                             <div key={r.id} onClick={() => setSelectedResident(r)} className="p-5 border border-gray-100 rounded-[24px] bg-white shadow-sm flex justify-between items-center active:bg-gray-50 transition-colors cursor-pointer">
                                 <div>
                                     <div className="font-black text-lg text-gray-800">{r.name} 様</div>
                                     <div className="text-[10px] text-gray-400 font-bold flex items-center gap-1 mt-1">
-                                        <Icon name="calendar" size={10} /> {r.exitDate || '未定'} 退居予定
+                                        <Icon name="calendar" size={10} /> {r.exitDate || '未定'}
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <div className="text-blue-600 font-black text-xl">¥{calculateTotal(r.cashCounts).toLocaleString()}</div>
-                                    <div className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">Total Balance</div>
+                                    <div className="text-[9px] text-gray-300 font-bold uppercase tracking-widest">Balance</div>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    {/* ナビゲーション */}
                     <div className="absolute bottom-0 w-full h-20 bg-white/90 backdrop-blur-md border-t flex justify-around items-center px-10 pb-4 z-10">
                         <button onClick={() => setView('current')} className={`flex flex-col items-center gap-1 ${view === 'current' ? 'text-blue-600' : 'text-gray-300'}`}>
                             <Icon name="users" /><div className="text-[9px] font-black">入居中</div>
@@ -149,7 +157,6 @@
                         </button>
                     </div>
 
-                    {/* 登録モーダル (フル画面) */}
                     {view === 'form' && (
                         <div className="fixed inset-0 bg-white z-50 flex flex-col animate-in slide-in-from-right">
                             <div className="p-6 pt-12 border-b flex justify-between items-center">
@@ -190,7 +197,6 @@
                         </div>
                     )}
 
-                    {/* 詳細・返却モーダル */}
                     {selectedResident && (
                         <div className="fixed inset-0 bg-black/60 z-50 flex items-end backdrop-blur-sm p-4">
                             <div className="bg-white w-full max-w-md mx-auto rounded-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom duration-300">
@@ -209,7 +215,7 @@
                                             <span className="text-3xl font-black text-blue-400">¥{calculateTotal(selectedResident.cashCounts).toLocaleString()}</span>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-400">
-                                            {Object.entries(selectedResident.cashCounts).map(([m, n]) => n > 0 && (
+                                            {selectedResident.cashCounts && Object.entries(selectedResident.cashCounts).map(([m, n]) => n > 0 && (
                                                 <div key={m}>{m}円: {n}枚</div>
                                             ))}
                                         </div>
@@ -223,10 +229,7 @@
 
                                 {!selectedResident.isExited ? (
                                     <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase">Return Staff Name</label>
-                                            <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-orange-500/20" placeholder="返却対応した職員" value={returnStaff} onChange={e => setReturnStaff(e.target.value)} />
-                                        </div>
+                                        <input className="w-full p-4 bg-gray-100 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-orange-500/20" placeholder="返却対応した職員" value={returnStaff} onChange={e => setReturnStaff(e.target.value)} />
                                         <div className="flex gap-3">
                                             <button onClick={() => setSelectedResident(null)} className="flex-1 py-4 bg-gray-100 text-gray-500 rounded-2xl font-bold">戻る</button>
                                             <button onClick={() => handleExit(selectedResident.id)} className="flex-[2] py-4 bg-orange-600 text-white rounded-2xl font-black shadow-lg">全額返却を確定</button>
